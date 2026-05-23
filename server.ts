@@ -19,6 +19,12 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Global logger to trace incoming api requests
+app.use((req, res, next) => {
+  console.log(`[SERVER] Incoming Request: ${req.method} ${req.url} - Content-Type: ${req.headers["content-type"]}`);
+  next();
+});
+
 // In-memory store for generated pitches history, pre-populated with realistic records
 let pitchHistory: PitchRecord[] = [
   {
