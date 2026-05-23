@@ -66,11 +66,11 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#0A0A0A] font-sans antialiased text-[#e5e2e1]">
-      {/* Visual background atmospheric particle lines */}
-      <div className="fixed inset-0 pointer-events-none z-[-1] opacity-25 select-none bg-gradient-to-b from-[#111111]/10 via-transparent to-[#0A0A0A]">
-        {/* Subtle grid pattern overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(#242424_1px,transparent_1px)] [background-size:16px_16px]"></div>
+    <div className="min-h-screen bg-[#F4F6F9] font-sans antialiased text-[#161616]">
+      {/* Visual background atmospheric corporate grid lines */}
+      <div className="fixed inset-0 pointer-events-none z-[-1] opacity-70 select-none bg-gradient-to-b from-white via-transparent to-[#F4F6F9]">
+        {/* Subtle professional grid pattern overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:24px_24px]"></div>
       </div>
 
       {/* Main Sidebar Anchor */}

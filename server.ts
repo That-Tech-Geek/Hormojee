@@ -112,6 +112,7 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok",
     hasGeminiKey: !!process.env.GEMINI_API_KEY && process.env.GEMINI_API_KEY !== "MY_GEMINI_API_KEY",
+    hasOpenApiKey: !!process.env.OPEN_API,
     time: new Date().toISOString(),
   });
 });
@@ -131,7 +132,7 @@ app.delete("/api/history/:id", (req, res) => {
 // Primary Pitch synthesis endpoint executing mapping, bundling & optional LLM refining
 app.post("/api/pitch", async (req, res) => {
   try {
-    const { product } = req.body;
+    const { product, improve } = req.body;
     if (!product || !product.industry) {
       return res.status(400).json({ error: "Missing product data or parameters" });
     }
@@ -176,14 +177,16 @@ app.post("/api/pitch", async (req, res) => {
     // Rescale similarity range to logical positive percentage representation 60% - 100%
     const finalConfidence = Math.max(0.6, Math.min(0.99, (primaryMatch.confidence + 1) / 2));
 
-    // 3. Optional refinement with Gemini Client
+    // 3. Optional refinement with OpenRouter or Gemini Client
     let finalizedPitchText = primaryMatch.baseText;
     let fallbackUsed = true;
+    let refinementUsed = "HDC Local Centroid Mapping";
 
-    const ai = getGeminiClient();
-    if (ai) {
-      try {
-        const prompt = `
+    const improvementDirective = improve
+      ? `\nREGENERATION & IMPROVEMENT DIRECTIVE:\nThis is a subsequent refinement request. The user wants you to further improve, polish, and enrich this pitch. Place extra emphasis on highlighting substantial ROI metrics, amplifying business urgency, and perfecting the executive wording to make it highly persuasive. Maintain exactly 3 to 4 sentences without any generic fluff.`
+      : "";
+
+    const prompt = `
 You are the High-Performance Sales Oracle Agent.
 You are given a target company profile and the nearest matching historic, high-conversion sales centroid pitch.
 
@@ -198,30 +201,77 @@ NEAREST CLUSTER MATCH (Similarity Score: ${(finalConfidence * 100).toFixed(1)}%)
 "${primaryMatch.baseText}"
 
 TASK:
-Refine the cluster match pitch into a hyper-personalized, punchy, persuasive, professional pitch that is structured specifically for ${prodData.name}.
+Refine the cluster match pitch into a hyper-personalized, punchy, persuasive, professional pitch that is structured specifically for ${prodData.name}.${improvementDirective}
 Keep the strong high-dimensional mathematical core intact, but replace boilerplate fields with realistic metrics tailored specifically to their domain.
 Make it sound executive, elegant, and definitive (around 3 to 4 impactful sentences). Do not include any greeting or signature line, just output the pure refined pitch text itself.
 `;
 
-        const response = await ai.models.generateContent({
-          model: "gemini-3.5-flash",
-          contents: prompt,
-          config: {
+    // Try OpenRouter if OPEN_API key (or OpenRouter variable) is specified
+    if (process.env.OPEN_API) {
+      try {
+        console.log("Using OpenRouter with OPEN_API key for pitch refinement...");
+        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+          method: "POST",
+          headers: {
+            "Authorization": `Bearer ${process.env.OPEN_API}`,
+            "Content-Type": "application/json",
+            "HTTP-Referer": "https://ai.studio/build",
+            "X-Title": "Oracle Sales Applet"
+          },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              {
+                role: "user",
+                content: prompt
+              }
+            ],
             temperature: 0.7,
-            maxOutputTokens: 500,
-          }
+            max_tokens: 500
+          })
         });
 
-        if (response && response.text) {
-          finalizedPitchText = response.text.trim();
-          fallbackUsed = false;
+        if (response.ok) {
+          const data = await response.json();
+          if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+            finalizedPitchText = data.choices[0].message.content.trim();
+            fallbackUsed = false;
+            refinementUsed = "OpenRouter (Gemini 2.5 Flash)";
+          }
+        } else {
+          console.error(`OpenRouter model call returned status ${response.status}: ${response.statusText}`);
         }
-      } catch (gemError) {
-        console.error("Gemini call failed, defaulting to mathematical template", gemError);
+      } catch (orError: any) {
+        console.error("OpenRouter call failed, falling back:", orError.message);
       }
     }
 
-    // Dynamic templated interpolation if Gemini fallback is triggered
+    // Try native Gemini API client as secondary LLM fallback
+    if (fallbackUsed) {
+      const ai = getGeminiClient();
+      if (ai) {
+        try {
+          const response = await ai.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt,
+            config: {
+              temperature: 0.7,
+              maxOutputTokens: 500,
+            }
+          });
+
+          if (response && response.text) {
+            finalizedPitchText = response.text.trim();
+            fallbackUsed = false;
+            refinementUsed = "Gemini-3.5-Flash";
+          }
+        } catch (gemError) {
+          console.error("Gemini call failed, defaulting to mathematical template", gemError);
+        }
+      }
+    }
+
+    // Dynamic templated interpolation if LLM fallback is triggered
     if (fallbackUsed) {
       const painsText = prodData.painPoints.length > 0
         ? `by surgically targeting your team's friction around ${prodData.painPoints.join(" and ")}`
@@ -252,7 +302,7 @@ Make it sound executive, elegant, and definitive (around 3 to 4 impactful senten
         similarityHistory: matches.map(m => ({ label: m.label, similarity: m.confidence })),
         dimensions: D,
         bundleSize: BYTES,
-        refinementUsed: !fallbackUsed ? "Gemini-3.5-Flash" : "HDC Local Centroid Mapping"
+        refinementUsed: refinementUsed
       }
     });
 
