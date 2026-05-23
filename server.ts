@@ -204,13 +204,112 @@ app.post("/api/pitch", async (req, res) => {
       finalizedPitchText = `We have synthesized a custom partnership model tailored specifically to ${prodData.name}'s current operations. At a projected contract of $${prodData.price.toLocaleString()}/mo, our system integrates seamlessly to solve ${painsText}. Let's collaborate to streamline your '${prodData.dealStage}' stage with sub-10ms high-affinity vector delivery.`;
     }
 
+    // Advanced dynamic refinement & conversation logic if improve flag is active
+    if (improve) {
+      const feedback = req.body.feedback || {};
+      const previousScript = req.body.previousScript || finalizedPitchText;
+      const client = getGeminiClient();
+
+      if (client) {
+        const grievancesStr = feedback.grievances && feedback.grievances.length > 0
+          ? feedback.grievances.join(", ")
+          : "None specified";
+        const amplifyAngleStr = feedback.amplifyAngle || "General SaaS partnership value";
+        const customRefinementStr = feedback.customRefinement || "None specified";
+
+        const prompt = `You are an elite enterprise B2B sales copywriter and outreach expert.
+An outbound script was generated with details:
+Target Prospect: ${prodData.name} (Role: ${product.prospectRole || "Decision Maker"})
+Industry: ${prodData.industry}
+Deal Stage: ${prodData.dealStage}
+Price: $${prodData.price.toLocaleString()}/mo
+Tone: ${prodData.tone}
+Channel: ${product.channel || "Cold Email"}
+
+Current Draft:
+"${previousScript}"
+
+The user is not fully satisfied with this draft and has submitted these clarification inputs and requested updates:
+1. Specific complaints/grievances: ${grievancesStr}
+2. Key angle to amplify: ${amplifyAngleStr}
+3. Custom requests/feedback: "${customRefinementStr}"
+
+Your mission is to rewrite and optimize this outbound copy. Address and resolve all grievances!
+- If grievances include "too-long" or "too-wordy", write a hyper-short, high-impact script.
+- If grievances include "too-pushy" or "too-aggressive", soften the tone to be highly collaborative.
+- If grievances include "too-generic" or "needs-metrics", find logical places to inject ROI values.
+- Seamlessly amplify the core value angle: ${amplifyAngleStr} (e.g. emphasize cost reduction, security, speed, etc.).
+- Incorporate custom details: "${customRefinementStr}" if specified.
+- Retain proper context and formatting for ${product.channel || "Cold Email"}.
+
+Output ONLY the improved copywriting text itself. Absolutely no conversational intro/outro, no markdown wrappers like \`\`\`css or \`\`\`html. Just output the clean copy.`;
+
+        try {
+          const response = await client.models.generateContent({
+            model: "gemini-3.5-flash",
+            contents: prompt
+          });
+          if (response.text) {
+            finalizedPitchText = response.text.trim();
+            refinementUsed = "Hormojee Gemini-3.5-Flash Optimizer";
+            fallbackUsed = false;
+          }
+        } catch (gemError: any) {
+          console.error("Gemini optimization error, running offline rules:", gemError);
+        }
+      }
+
+      // Offline deterministic optimization fallbacks if Gemini is not set up or fails
+      if (fallbackUsed) {
+        refinementUsed = "Hormojee Local Refinement Optimizer";
+        
+        // Handle grievances offline
+        const grievances = feedback.grievances || [];
+        if (grievances.includes("too-long") || grievances.includes("too-wordy")) {
+          // Truncate to a punchy two-sentence core statement
+          const sentences = finalizedPitchText.split(". ");
+          if (sentences.length > 2) {
+            finalizedPitchText = `${sentences[0]}. ${sentences[1]}. Let's secure a brief 10-minute slot to finalize our trajectory.`;
+          }
+        }
+
+        if (grievances.includes("too-generic") || grievances.includes("needs-metrics")) {
+          finalizedPitchText = `${finalizedPitchText} Mathematically, this eliminates up to 37.4% of waste, translating to a projected ROI of 312% with near-zero latency.`;
+        }
+
+        if (grievances.includes("too-pushy") || grievances.includes("too-aggressive")) {
+          finalizedPitchText = `We'd love to partner with you to ease your current workloads. ${finalizedPitchText.replace(/cannot afford to stall/g, "is exploring new avenues").replace(/eliminates/g, "helps streamline")}`;
+        }
+
+        // Handle value angle offline
+        if (feedback.amplifyAngle === "cost-savings") {
+          finalizedPitchText = `${finalizedPitchText} Our model actively projects a minimal $14k/quarter overhead savings from day one of deployment.`;
+        } else if (feedback.amplifyAngle === "time-to-adoption") {
+          finalizedPitchText = `${finalizedPitchText} Installation integrates seamlessly within 3 business days with no production downtime whatsoever.`;
+        } else if (feedback.amplifyAngle === "governance") {
+          finalizedPitchText = `${finalizedPitchText} Full compliance and hyperdimensional telemetry logs are included natively, protecting your core networks.`;
+        }
+
+        // Handing custom refinement feedback manually
+        if (feedback.customRefinement) {
+          finalizedPitchText = `${finalizedPitchText} [Updated Custom Focus]: ${feedback.customRefinement}`;
+        }
+      }
+    }
+
     // 4. Record new pitch inside history
     const newRecord: PitchRecord = {
       id: `pitch-${Date.now()}`,
       name: prodData.name,
       confidence: Number(finalConfidence.toFixed(4)),
       timestamp: new Date().toISOString(),
-      product: prodData,
+      product: {
+        ...prodData,
+        prospectRole: product.prospectRole,
+        competitors: product.competitors,
+        cta: product.cta,
+        channel: product.channel
+      },
       text: finalizedPitchText,
       centroidId: primaryMatch.centroidId
     };

@@ -42,6 +42,12 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   const [chatGptModel, setChatGptModel] = useState("o1"); // Default to highest reasoning model on top
   const [activeCentroidMatch, setActiveCentroidMatch] = useState<string>("");
   const [apiRefinementModel, setApiRefinementModel] = useState<string>("");
+  
+  // Interactive Refinement Questionnaire states
+  const [showRefinePanel, setShowRefinePanel] = useState(false);
+  const [refineGrievances, setRefineGrievances] = useState<string[]>([]);
+  const [refineAngle, setRefineAngle] = useState<string>("cost-savings");
+  const [refineCustomText, setRefineCustomText] = useState("");
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -354,12 +360,17 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   };
 
   // Trigger iterative refinement improvements request
-  const triggerRegeneration = async () => {
+  const triggerRegeneration = async (feedbackData?: {
+    grievances: string[];
+    amplifyAngle: string;
+    customRefinement: string;
+  }) => {
     setCompilingStep("refinement");
     setStatusLog((prev) => [
       ...prev,
       "Executing dynamic pitch improvement cycle...",
-      "Requesting iterative metrics & business ROI injection from sales model..."
+      "Injected user clarification adjustments into model gateway...",
+      feedbackData ? `Tuning vector parameters: [Grievances: ${feedbackData.grievances.length > 0 ? feedbackData.grievances.join(", ") : "none"}, Focus: ${feedbackData.amplifyAngle}]` : "Standard model optimization active."
     ]);
 
     const payload: ProductData = {
@@ -380,7 +391,12 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       const response = await fetch("/api/pitch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ product: payload, improve: true })
+        body: JSON.stringify({ 
+          product: payload, 
+          improve: true,
+          previousScript: synthesizedPitch?.text || "",
+          feedback: feedbackData || {}
+        })
       });
 
       if (!response.ok) {
@@ -398,6 +414,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
         `Iterative refinement successfully completed via ${data.mathDetails.refinementUsed || "Sales Oracle"}.`,
         "Polished sales pitch draft loaded successfully."
       ]);
+      setShowRefinePanel(false);
     } catch (err: any) {
       console.error(err);
       setStatusLog((prev) => [...prev, "ERROR: Script improvement sequence failed.", err.message]);
@@ -885,6 +902,146 @@ Provide 2 high-conversion variations with engaging/high-open subject lines, and 
                 {synthesizedPitch.text}
               </div>
 
+              {showRefinePanel && (
+                <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-4 animate-fadeIn select-none">
+                  <div className="flex justify-between items-center border-b border-slate-150 pb-2.5">
+                    <div className="flex items-center gap-2">
+                      <Sliders className="w-4 h-4 text-slate-800" />
+                      <span className="font-sans font-bold text-xs text-slate-900 uppercase tracking-wide">
+                        Clarification Setup & Copy Precision Tuning
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setShowRefinePanel(false)}
+                      className="text-[10px] bg-white border border-slate-200 hover:border-slate-350 px-2 py-1 rounded text-slate-700 font-bold font-sans cursor-pointer transition-all"
+                    >
+                      Hide
+                    </button>
+                  </div>
+
+                  {/* Question 1: What needs correction? */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-sans font-extrabold text-slate-600 uppercase tracking-widest">
+                      1. What didn't hit the mark? (Select any specific grievances)
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-sans">
+                      {[
+                        { id: "too-long", label: "Too long / Too wordy (Make elegant & short) 📝" },
+                        { id: "too-pushy", label: "Too aggressive / pushy (Soften the approach) 🍦" },
+                        { id: "too-generic", label: "Too generic (Inject core metrics & ROI tables) 📊" },
+                        { id: "needs-metrics", label: "Needs more structural trust indicators 🛡️" }
+                      ].map((item) => {
+                        const isChecked = refineGrievances.includes(item.id);
+                        return (
+                          <label
+                            key={item.id}
+                            className={`flex items-center gap-2 p-2.5 rounded-lg border transition-all cursor-pointer font-bold ${
+                              isChecked
+                                ? "bg-slate-900 text-white border-slate-900"
+                                : "bg-white text-slate-700 border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={() => {
+                                setRefineGrievances((prev) =>
+                                  isChecked ? prev.filter((id) => id !== item.id) : [...prev, item.id]
+                                );
+                              }}
+                              className="sr-only"
+                            />
+                            <span>{item.label}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Question 2: Custom target angle direction */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-sans font-extrabold text-slate-600 uppercase tracking-widest">
+                      2. Which core Outbound Value Angle should we amplify?
+                    </label>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                      {[
+                        {
+                          id: "cost-savings",
+                          title: "Cost & Margin Savings",
+                          desc: "Deep focus on cost reductions and software overhead margin optimization."
+                        },
+                        {
+                          id: "time-to-adoption",
+                          title: "Instant Integration Velocity",
+                          desc: "Highlight sub-100ms vector execution and extremely smooth 1-week adoption streams."
+                        },
+                        {
+                          id: "governance",
+                          title: "Compliance & Safety Guardrails",
+                          desc: "Zero infrastructure downtime, secure pipelines, and absolute data compliance."
+                        }
+                      ].map((angle) => {
+                        const isSelected = refineAngle === angle.id;
+                        return (
+                          <button
+                            key={angle.id}
+                            type="button"
+                            onClick={() => setRefineAngle(angle.id)}
+                            className={`p-3 text-left rounded-lg border transition-all cursor-pointer block h-full ${
+                              isSelected
+                                ? "bg-slate-900/5 border-slate-900 shadow-sm ring-1 ring-slate-900"
+                                : "bg-white border-slate-200 hover:border-slate-300"
+                            }`}
+                          >
+                            <span className="block text-xs font-sans font-extrabold text-slate-900">{angle.title}</span>
+                            <span className="block text-[10px] font-sans text-slate-500 font-medium leading-tight mt-1">{angle.desc}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Question 3: Custom Feedback textarea */}
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-sans font-extrabold text-slate-600 uppercase tracking-widest">
+                      3. Custom specific context, competitor defenses or directions:
+                    </label>
+                    <textarea
+                      value={refineCustomText}
+                      onChange={(e) => setRefineCustomText(e.target.value)}
+                      placeholder='e.g., "Mention our ISO 27001 certificate" or "Tailor specifically for SkyNet Logistics in 2 sentences max"'
+                      className="w-full bg-white border border-slate-200 focus:border-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none min-h-[60px] max-h-[140px] font-bold shadow-sm placeholder-slate-400"
+                    />
+                  </div>
+
+                  {/* Submit buttons */}
+                  <div className="flex justify-end gap-2 border-t border-slate-150 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => setShowRefinePanel(false)}
+                      className="px-4 py-2 rounded-lg bg-white border border-slate-200 hover:bg-slate-50 hover:border-slate-300 text-slate-600 text-xs font-sans font-bold cursor-pointer transition-all"
+                    >
+                      Cancel Refinement
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        triggerRegeneration({
+                          grievances: refineGrievances,
+                          amplifyAngle: refineAngle,
+                          customRefinement: refineCustomText
+                        });
+                      }}
+                      className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-950 px-5 py-2 rounded-lg text-xs font-sans font-extrabold shadow transition-all cursor-pointer"
+                    >
+                      <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                      <span>Execute Advanced Copy Refinement</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               <div className="flex justify-end gap-2">
                 <button
                   type="button"
@@ -906,10 +1063,14 @@ Provide 2 high-conversion variations with engaging/high-open subject lines, and 
 
                 <button
                   type="button"
-                  onClick={triggerRegeneration}
-                  className="flex items-center gap-1.5 bg-white border border-slate-200 hover:border-slate-400 text-slate-700 hover:text-slate-900 px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer"
+                  onClick={() => setShowRefinePanel(!showRefinePanel)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer border ${
+                    showRefinePanel 
+                      ? "bg-slate-905 border-slate-950 text-white" 
+                      : "bg-white border-slate-200 hover:border-slate-400 text-slate-700 hover:text-slate-900"
+                  }`}
                 >
-                  <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
+                  <RotateCcw className={`w-3.5 h-3.5 ${showRefinePanel ? "text-white" : "text-slate-500"}`} />
                   <span>Regenerate & Improve</span>
                 </button>
               </div>
@@ -926,7 +1087,7 @@ Provide 2 high-conversion variations with engaging/high-open subject lines, and 
 
           {/* Sub-section B: ChatGPT Deep Link Area (Always visible, ranked by reasoning power) */}
           <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-3.5 select-none animate-fadeIn">
-            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+            <div className="flex items-center justify-between border-b border-slate-150 pb-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="w-4 h-4 text-slate-850 animate-pulse" />
                 <span className="text-[10px] font-sans font-extrabold text-slate-900 uppercase tracking-wider">
@@ -934,92 +1095,43 @@ Provide 2 high-conversion variations with engaging/high-open subject lines, and 
                 </span>
               </div>
               <span className="text-[9px] font-sans text-slate-400 font-extrabold uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded">
-                Ranked by Reasoning
+                Dynamic Dispatcher
               </span>
             </div>
 
-            <p className="text-[10px] font-sans text-slate-405 leading-relaxed font-semibold">
+            <p className="text-[10px] font-sans text-slate-500 leading-relaxed font-semibold">
               Select a model below to launch directly into ChatGPT pre-loaded with our complete JSON-optimized B2B outbound campaign prompt context.
             </p>
 
-            <div className="space-y-2.5">
-              {[
-                { 
-                  id: "o1", 
-                  name: "ChatGPT o1", 
-                  power: "Reasoning: Max", 
-                  desc: "Multistep logical reasoning. Best for long outbound strategy & deal mapping.",
-                  badge: "★ Highest Cap",
-                  badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                },
-                { 
-                  id: "o1-mini", 
-                  name: "ChatGPT o1-mini", 
-                  power: "Reasoning: High", 
-                  desc: "Sub-second code and high logical personalizations.",
-                  badge: "Logic King",
-                  badgeColor: "bg-teal-50 text-teal-700 border border-teal-200"
-                },
-                { 
-                  id: "gpt-4o", 
-                  name: "GPT-4o", 
-                  power: "Reasoning: Balanced", 
-                  desc: "Omni-capability. High warmth, perfect for consultative voice tones.",
-                  badge: "Versatile",
-                  badgeColor: "bg-slate-100 text-slate-700 border border-slate-200"
-                },
-                { 
-                  id: "gpt-4-turbo", 
-                  name: "GPT-4-Turbo", 
-                  power: "Reasoning: Legacy High", 
-                  desc: "Classic robust template personalized outbound generation.",
-                  badge: "Established",
-                  badgeColor: "bg-slate-50 text-slate-550 border border-slate-200"
-                },
-                { 
-                  id: "gpt-3.5-turbo", 
-                  name: "GPT-3.5-Turbo", 
-                  power: "Reasoning: Low", 
-                  desc: "Speed-optimized. Basic quick pitch writing drafts.",
-                  badge: "Lightweight",
-                  badgeColor: "bg-slate-50 text-slate-400"
-                }
-              ].map((m) => {
-                const targetLink = `https://chatgpt.com/?model=${m.id}&q=${encodeURIComponent(getGptPrompt())}`;
-                return (
-                  <a
-                    key={m.id}
-                    href={targetLink}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    onClick={() => setChatGptModel(m.id)}
-                    className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 hover:border-slate-400 p-3 rounded-lg transition-all transform active:scale-[0.99] cursor-pointer shadow-sm group hover:shadow"
-                  >
-                    <div className="text-left space-y-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-xs font-sans font-black text-slate-900 group-hover:text-slate-955 transition-colors">
-                          {m.name}
-                        </span>
-                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-sans font-extrabold uppercase tracking-wider ${m.badgeColor}`}>
-                          {m.badge}
-                        </span>
-                      </div>
-                      <p className="text-[10px] font-sans text-slate-400 leading-snug font-bold">
-                        {m.desc}
-                      </p>
-                    </div>
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3 pt-1">
+              <div className="flex-1">
+                <label className="block text-[9px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Reasoning Model (Ranked High to Low)
+                </label>
+                <select
+                  value={chatGptModel}
+                  onChange={(e) => setChatGptModel(e.target.value)}
+                  className="w-full bg-white border border-slate-200 focus:border-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none cursor-pointer font-bold transition-all shadow-sm"
+                >
+                  <option value="o1">ChatGPT o1 (Reasoning: Max)</option>
+                  <option value="o1-mini">ChatGPT o1-mini (Reasoning: High)</option>
+                  <option value="gpt-4o">GPT-4o (Reasoning: Balanced)</option>
+                  <option value="gpt-4-turbo">GPT-4-Turbo (Reasoning: Legacy High)</option>
+                  <option value="gpt-3.5-turbo">GPT-3.5-Turbo (Reasoning: Low)</option>
+                </select>
+              </div>
 
-                    <div className="flex items-center justify-between sm:justify-end gap-3 font-sans shrink-0">
-                      <span className="text-[8px] text-slate-450 font-black uppercase tracking-wider hidden sm:inline">
-                        {m.power}
-                      </span>
-                      <span className="bg-slate-900 group-hover:bg-slate-950 text-white text-[10px] font-sans font-extrabold px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm">
-                        Launch <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
-                      </span>
-                    </div>
-                  </a>
-                );
-              })}
+              <div className="shrink-0">
+                <a
+                  href={`https://chatgpt.com/?model=${chatGptModel}&q=${encodeURIComponent(getGptPrompt())}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 bg-slate-900 text-white hover:bg-slate-950 px-5 py-2.5 rounded-lg text-xs font-sans font-extrabold transition-all cursor-pointer shadow-sm group h-[38px] w-full sm:w-auto"
+                >
+                  <span>Build with ChatGPT</span>
+                  <ExternalLink className="w-3.5 h-3.5 text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </a>
+              </div>
             </div>
           </div>
         </div>
