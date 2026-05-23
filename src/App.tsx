@@ -15,7 +15,7 @@ import { PitchRecord, ProductData } from "./types";
 export default function App() {
   const [currentTab, setTab] = useState<string>("dashboard");
   const [historyList, setHistoryList] = useState<PitchRecord[]>([]);
-  const [selectedDraft, setSelectedDraft] = useState<ProductData | null>(null);
+  const [selectedDraft, setSelectedDraft] = useState<PitchRecord | null>(null);
 
   // Synchronize history from server API on mount
   const syncHistoryWithServer = async () => {
@@ -55,7 +55,7 @@ export default function App() {
 
   // Navigates directly to tweaking form with parameters loaded
   const handleReviewDraft = (record: PitchRecord) => {
-    setSelectedDraft(record.product);
+    setSelectedDraft(record);
     setTab("generator");
   };
 

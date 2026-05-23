@@ -9,7 +9,7 @@ import { ProductData, PitchRecord } from "../types";
 import { encodeProduct, SYSTEM_CENTROIDS, bitCosine, BYTES } from "../math/hyperdimensional";
 
 interface GeneratorViewProps {
-  initialProduct: ProductData | null;
+  initialProduct: ProductData | PitchRecord | null;
   onPitchGenerated: (newPitch: PitchRecord) => void;
 }
 
@@ -42,13 +42,56 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   // Sync with reviewed drafts from Dashboard
   useEffect(() => {
     if (initialProduct) {
-      setName(initialProduct.name);
-      setIndustry(initialProduct.industry);
-      setDealStage(initialProduct.dealStage);
-      setPrice(initialProduct.price);
-      setPainPoints(initialProduct.painPoints || []);
-      setCustomAttributes(initialProduct.customAttributes || {});
-      setTone(initialProduct.tone || "Consultative");
+      // Check if it is a full PitchRecord or just ProductData
+      const isPitchRecord = "product" in initialProduct;
+      const product = isPitchRecord ? (initialProduct as any).product : initialProduct;
+
+      setName(product.name || "");
+      setIndustry(product.industry || "SaaS");
+      setDealStage(product.dealStage || "proposal");
+      setPrice(product.price || 5000);
+      setPainPoints(product.painPoints || []);
+      setCustomAttributes(product.customAttributes || {});
+      setTone(product.tone || "Consultative");
+
+      if (isPitchRecord) {
+        const record = initialProduct as PitchRecord;
+        setSynthesizedPitch(record);
+        setCompilingStep("completed");
+
+        // Recreate vectors for visualization
+        const generatedVec = encodeProduct(product);
+        setCurrentVector(generatedVec);
+
+        const results = SYSTEM_CENTROIDS.map((c) => {
+          const centroidData: ProductData = {
+            name: c.label,
+            industry: c.features.industry || "",
+            dealStage: c.features.dealStage || "proposal",
+            price: c.features.price || 1000,
+            painPoints: c.features.painPoints || []
+          };
+          const centroidVec = encodeProduct(centroidData);
+          const similarity = bitCosine(generatedVec, centroidVec);
+          const normalizedPercent = Math.max(0.6, Math.min(0.99, (similarity + 1) / 2));
+          return { label: c.label, similarity: normalizedPercent };
+        });
+        results.sort((a, b) => b.similarity - a.similarity);
+        setScannedCentroids(results);
+        setActiveCentroidMatch(results[0].label);
+
+        setStatusLog([
+          "Detected historic sales pitch record loaded from log database.",
+          "Profile attributes and mathematical vectors pre-synchronized successfully.",
+          "Ready for parameter fine-tuning, iterative regeneration, or direct outreach."
+        ]);
+      } else {
+        setSynthesizedPitch(null);
+        setCompilingStep("idle");
+        setCurrentVector(null);
+        setScannedCentroids([]);
+        setStatusLog([]);
+      }
     } else {
       // Default initial states
       setName("Cyberdyne Systems");
@@ -58,6 +101,12 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       setPainPoints(["compliance", "low adoption"]);
       setCustomAttributes({});
       setTone("Consultative");
+
+      setSynthesizedPitch(null);
+      setCompilingStep("idle");
+      setCurrentVector(null);
+      setScannedCentroids([]);
+      setStatusLog([]);
     }
   }, [initialProduct]);
 
