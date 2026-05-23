@@ -11,6 +11,10 @@ export interface ProductData {
   painPoints: string[];
   customAttributes?: Record<string, string>;
   tone?: string;
+  prospectRole?: string;
+  competitors?: string;
+  cta?: string;
+  channel?: string;
 }
 
 export interface CentroidRecord {

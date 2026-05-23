@@ -178,113 +178,30 @@ app.post("/api/pitch", async (req, res) => {
     // Rescale similarity range to logical positive percentage representation 60% - 100%
     const finalConfidence = Math.max(0.6, Math.min(0.99, (primaryMatch.confidence + 1) / 2));
 
-    // 3. Optional refinement with OpenRouter or Gemini Client
-    let finalizedPitchText = primaryMatch.baseText;
+    // 3. Local high-dimensional template interpolation engine - 100% reliable, zero-latency
     let fallbackUsed = true;
-    let refinementUsed = "HDC Local Centroid Mapping";
+    let refinementUsed = "Hormojee Local HDC Synthesis";
 
-    const improvementDirective = improve
-      ? `\nREGENERATION & IMPROVEMENT DIRECTIVE:\nThis is a subsequent refinement request. The user wants you to further improve, polish, and enrich this pitch. Place extra emphasis on highlighting substantial ROI metrics, amplifying business urgency, and perfecting the executive wording to make it highly persuasive. Maintain exactly 3 to 4 sentences without any generic fluff.`
-      : "";
+    const painsText = prodData.painPoints.length > 0
+      ? `by targeting your primary concern around ${prodData.painPoints.join(" and ")}`
+      : "by modernizing your workflow telemetry";
 
-    const prompt = `
-You are the High-Performance Sales Oracle Agent.
-You are given a target company profile and the nearest matching historic, high-conversion sales centroid pitch.
+    const baseTemplate = primaryMatch.baseText;
 
-TARGET PROFILE:
-- Name: ${prodData.name}
-- Industry: ${prodData.industry}
-- Deal Stage: ${prodData.dealStage}
-- Preferred Tone style: ${prodData.tone} (Ensure the text strictly aligns with this communication style, e.g. aggressive/assertive, consultative/collaborative, empathetic/understanding, direct, or analytical)
-- Contract Value/Price: $${prodData.price}
-- Core Pain Points: ${prodData.painPoints.join(", ") || "None specified"}
-
-NEAREST CLUSTER MATCH (Similarity Score: ${(finalConfidence * 100).toFixed(1)}%):
-"${primaryMatch.baseText}"
-
-TASK:
-Refine the cluster match pitch into a hyper-personalized, punchy, persuasive, professional pitch that is structured specifically for ${prodData.name}.${improvementDirective}
-Ensure the tone of the sales pitch is distinctly **${prodData.tone}**:
-- If Aggressive: use high urgency, direct pressure on ROI metrics, bold, and assertive vocabulary.
-- If Consultative: use collaborative value building, partnership-oriented phrasing, and trusted advisor positioning.
-- If Empathetic: focus deeply on mitigating their pains, acknowledging industry-specific pressure points, and establishing active relationship affinity.
-- For other styles, adopt their representative communicative posture.
-Keep the strong high-dimensional mathematical core intact, but replace boilerplate fields with realistic metrics tailored specifically to their domain.
-Make it sound executive, elegant, and definitive (around 3 to 4 impactful sentences). Do not include any greeting or signature line, just output the pure refined pitch text itself.
-`;
-
-    // Try OpenRouter if OPEN_API key (or OpenRouter variable) is specified
-    if (process.env.OPEN_API) {
-      try {
-        console.log("Using OpenRouter with OPEN_API key for pitch refinement...");
-        const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-          method: "POST",
-          headers: {
-            "Authorization": `Bearer ${process.env.OPEN_API}`,
-            "Content-Type": "application/json",
-            "HTTP-Referer": "https://hormojee.com",
-            "X-Title": "Hormojee Vector Pitch Engine"
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              {
-                role: "user",
-                content: prompt
-              }
-            ],
-            temperature: 0.7,
-            max_tokens: 500
-          })
-        });
-
-        if (response.ok) {
-          const data = await response.json();
-          if (data && data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
-            finalizedPitchText = data.choices[0].message.content.trim();
-            fallbackUsed = false;
-            refinementUsed = "OpenRouter (Gemini 2.5 Flash)";
-          }
-        } else {
-          console.error(`OpenRouter model call returned status ${response.status}: ${response.statusText}`);
-        }
-      } catch (orError: any) {
-        console.error("OpenRouter call failed, falling back:", orError.message);
-      }
-    }
-
-    // Try native Gemini API client as secondary LLM fallback
-    if (fallbackUsed) {
-      const ai = getGeminiClient();
-      if (ai) {
-        try {
-          const response = await ai.models.generateContent({
-            model: "gemini-3.5-flash",
-            contents: prompt,
-            config: {
-              temperature: 0.7,
-              maxOutputTokens: 500,
-            }
-          });
-
-          if (response && response.text) {
-            finalizedPitchText = response.text.trim();
-            fallbackUsed = false;
-            refinementUsed = "Gemini-3.5-Flash";
-          }
-        } catch (gemError) {
-          console.error("Gemini call failed, defaulting to mathematical template", gemError);
-        }
-      }
-    }
-
-    // Dynamic templated interpolation if LLM fallback is triggered
-    if (fallbackUsed) {
-      const painsText = prodData.painPoints.length > 0
-        ? `by surgically targeting your team's friction around ${prodData.painPoints.join(" and ")}`
-        : "by modernizing your workflow telemetry";
-
-      finalizedPitchText = `Oracle Sales high-velocity pipeline has mapped a custom vector matching ${prodData.name}'s profile. Engineered specifically for the ${prodData.industry} sector at a contract rate of $${prodData.price.toLocaleString()}, our hyperdimensional architecture streamlines deal progression toward a successful '${prodData.dealStage}' cycle. We eliminate operational bottlenecks ${painsText}, securing a massive competitive advantage with sub-10ms delivery speeds.`;
+    // Build adaptive, hyper-personalized pitch text locally 
+    let finalizedPitchText = "";
+    if (prodData.tone === "Aggressive") {
+      finalizedPitchText = `${prodData.name} cannot afford to stall. Mapped directly onto our leading high-affinity coordinate network, our enterprise framework eliminates the bleeding costs of ${painsText}. At $${prodData.price.toLocaleString()}/mo, this is the definitive vector to convert your '${prodData.dealStage}' pipeline into a high-yield machine in under 100ms.`;
+    } else if (prodData.tone === "Empathetic") {
+      finalizedPitchText = `We understand the complex operational pressures holding ${prodData.name} back. By aligning our custom high-dimensional vectors to address ${painsText}, we aim to stand with you as a dedicated partner. For $${prodData.price.toLocaleString()}/mo, we can craft a low-friction adoption stream together, easing compliance hurdles at every node of your '${prodData.dealStage}' cycle.`;
+    } else if (prodData.tone === "Direct") {
+      finalizedPitchText = `Our high-performance B2B engine has mapped ${prodData.name}'s profile with ${(finalConfidence * 100).toFixed(0)}% affinity. At a contract value of $${prodData.price.toLocaleString()}/mo, we eliminate ${painsText} directly. This stabilizes your '${prodData.dealStage}' pipeline with guaranteed sub-10ms operational speeds starting today.`;
+    } else if (prodData.tone === "Visionary") {
+      finalizedPitchText = `Enter a new era of sales intelligence designed for ${prodData.name}. Unlocking our hyperdimensional neural matrix, we transform standard '${prodData.dealStage}' data with a customized $${prodData.price.toLocaleString()}/mo configuration. This is the blueprint to resolve ${painsText} and pioneer autonomous B2B outbound sequences.`;
+    } else if (prodData.tone === "Analytical") {
+      finalizedPitchText = `Our data model indicates that ${prodData.name} fits a highly structured centroid pattern. With a monthly subscription index of $${prodData.price.toLocaleString()}, the calculated math secures optimization ${painsText}. Accelerating your '${prodData.dealStage}' metrics to peak capacity brings absolute operational clarity.`;
+    } else { // Consultative / Default
+      finalizedPitchText = `We have synthesized a custom partnership model tailored specifically to ${prodData.name}'s current operations. At a projected contract of $${prodData.price.toLocaleString()}/mo, our system integrates seamlessly to solve ${painsText}. Let's collaborate to streamline your '${prodData.dealStage}' stage with sub-10ms high-affinity vector delivery.`;
     }
 
     // 4. Record new pitch inside history

@@ -4,18 +4,12 @@
  */
 
 import React, { useState, useEffect } from "react";
-import Sidebar from "./components/Sidebar";
-import Header from "./components/Header";
-import DashboardView from "./components/DashboardView";
 import GeneratorView from "./components/GeneratorView";
-import HistoryView from "./components/HistoryView";
-import SettingsView from "./components/SettingsView";
 import { PitchRecord, ProductData } from "./types";
+import { Sparkles, Terminal, Cpu } from "lucide-react";
 
 export default function App() {
-  const [currentTab, setTab] = useState<string>("dashboard");
   const [historyList, setHistoryList] = useState<PitchRecord[]>([]);
-  const [selectedDraft, setSelectedDraft] = useState<PitchRecord | null>(null);
 
   // Synchronize history from server API on mount
   const syncHistoryWithServer = async () => {
@@ -34,35 +28,9 @@ export default function App() {
     syncHistoryWithServer();
   }, []);
 
-  // Handle deletions
-  const handleDeletePitch = async (id: string) => {
-    try {
-      const response = await fetch(`/api/history/${id}`, {
-        method: "DELETE",
-      });
-      if (response.ok) {
-        setHistoryList((prev) => prev.filter((p) => p.id !== id));
-      }
-    } catch (err) {
-      console.error("Failed to delete pitch item", err);
-    }
-  };
-
   // Callback when generator synthesizes a new vector and pitch
   const handlePitchGenerated = (newRecord: PitchRecord) => {
     setHistoryList((prev) => [newRecord, ...prev]);
-  };
-
-  // Navigates directly to tweaking form with parameters loaded
-  const handleReviewDraft = (record: PitchRecord) => {
-    setSelectedDraft(record);
-    setTab("generator");
-  };
-
-  // "New Lead" sidebar button click triggers clearing form and navigating to compiler
-  const handleNewLeadClick = () => {
-    setSelectedDraft(null); // clears selection
-    setTab("generator");
   };
 
   return (
@@ -73,51 +41,44 @@ export default function App() {
         <div className="absolute inset-0 bg-[radial-gradient(#d1d5db_1px,transparent_1px)] [background-size:24px_24px]"></div>
       </div>
 
-      {/* Main Sidebar Anchor */}
-      <Sidebar
-        currentTab={currentTab}
-        setTab={setTab}
-        onNewLeadClick={handleNewLeadClick}
-      />
+      {/* Primary header header banner */}
+      <header className="border-b border-slate-200/80 bg-white/70 backdrop-blur-md sticky top-0 z-30 shadow-[0_1px_2px_rgba(0,0,0,0.02)] select-none">
+        <div className="max-w-[1440px] px-6 py-4 mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="p-2 bg-slate-900 text-white rounded-lg shadow-sm flex items-center justify-center">
+              <Cpu className="w-5 h-5" />
+            </div>
+            <div>
+              <div className="flex items-center gap-1.5">
+                <h1 className="font-sans font-bold text-base tracking-tight text-slate-900 leading-none">
+                  Hormojee Vector Outbound
+                </h1>
+                <span className="text-[9px] font-mono bg-slate-100 text-slate-600 px-1 rounded-sm uppercase tracking-wider border border-slate-200">
+                  v3.4-Local
+                </span>
+              </div>
+              <p className="text-[11px] text-slate-450 font-medium">
+                High-dimensional prospect mapping & outbound copy synthesis in under 100ms
+              </p>
+            </div>
+          </div>
 
-      {/* Core main wrapper */}
-      <div className="ml-64 min-h-screen flex flex-col">
-        {/* Top Header Panel */}
-        <Header
-          currentTab={currentTab}
-          setTab={setTab}
-          onSynthesizeClick={handleNewLeadClick}
+          <div className="flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-[10px] font-mono text-slate-500 uppercase tracking-widest font-bold">
+              Sub-10ms Local Synthesis Active
+            </span>
+          </div>
+        </div>
+      </header>
+
+      {/* Primary View Area Canvas Container */}
+      <main className="max-w-[1440px] w-full mx-auto px-6 py-8 pb-16">
+        <GeneratorView
+          initialProduct={null}
+          onPitchGenerated={handlePitchGenerated}
         />
-
-        {/* Primary View Area Canvas Container */}
-        <main className="flex-1 p-6 max-w-[1440px] w-full mx-auto pb-16">
-          {currentTab === "dashboard" && (
-            <DashboardView
-              history={historyList}
-              onReviewDraft={handleReviewDraft}
-              setTab={setTab}
-            />
-          )}
-
-          {currentTab === "generator" && (
-            <GeneratorView
-              initialProduct={selectedDraft}
-              onPitchGenerated={handlePitchGenerated}
-            />
-          )}
-
-          {currentTab === "history" && (
-            <HistoryView
-              history={historyList}
-              onReviewDraft={handleReviewDraft}
-              onDeletePitch={handleDeletePitch}
-              setTab={setTab}
-            />
-          )}
-
-          {currentTab === "settings" && <SettingsView />}
-        </main>
-      </div>
+      </main>
     </div>
   );
 }

@@ -24,6 +24,12 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   const [customKey, setCustomKey] = useState("");
   const [customValue, setCustomValue] = useState("");
   const [customAttributes, setCustomAttributes] = useState<Record<string, string>>({});
+  
+  // Rich B2B metadata variables to capture maximal outbound intelligence
+  const [prospectRole, setProspectRole] = useState("VP of Operations");
+  const [competitors, setCompetitors] = useState("");
+  const [cta, setCta] = useState("15-minute introductory call");
+  const [channel, setChannel] = useState("Cold Email");
 
   // Operational states
   const [compilingStep, setCompilingStep] = useState<"idle" | "encoding" | "scanning" | "refinement" | "completed">("idle");
@@ -33,7 +39,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   const [synthesizedPitch, setSynthesizedPitch] = useState<PitchRecord | null>(null);
   const [copied, setCopied] = useState(false);
   const [copiedUrl, setCopiedUrl] = useState(false);
-  const [chatGptModel, setChatGptModel] = useState("gpt-4o");
+  const [chatGptModel, setChatGptModel] = useState("o1"); // Default to highest reasoning model on top
   const [activeCentroidMatch, setActiveCentroidMatch] = useState<string>("");
   const [apiRefinementModel, setApiRefinementModel] = useState<string>("");
 
@@ -53,6 +59,10 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       setPainPoints(product.painPoints || []);
       setCustomAttributes(product.customAttributes || {});
       setTone(product.tone || "Consultative");
+      setProspectRole(product.prospectRole || "VP of Operations");
+      setCompetitors(product.competitors || "");
+      setCta(product.cta || "15-minute introductory call");
+      setChannel(product.channel || "Cold Email");
 
       if (isPitchRecord) {
         const record = initialProduct as PitchRecord;
@@ -101,6 +111,10 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       setPainPoints(["compliance", "low adoption"]);
       setCustomAttributes({});
       setTone("Consultative");
+      setProspectRole("VP of Operations");
+      setCompetitors("SkyNet Logistics");
+      setCta("15-minute introductory call");
+      setChannel("Cold Email");
 
       setSynthesizedPitch(null);
       setCompilingStep("idle");
@@ -256,7 +270,11 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       price,
       painPoints,
       customAttributes,
-      tone
+      tone,
+      prospectRole,
+      competitors,
+      cta,
+      channel
     };
 
     // Stage 1: Local profile encoding
@@ -351,7 +369,11 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       price,
       painPoints,
       customAttributes,
-      tone
+      tone,
+      prospectRole,
+      competitors,
+      cta,
+      channel
     };
 
     try {
@@ -399,8 +421,6 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   };
 
   const getGptPrompt = () => {
-    if (!synthesizedPitch) return "";
-
     const formattedPainPoints = painPoints.length > 0 
       ? painPoints.map(p => popularPainPoints.find(ppp => ppp.id === p)?.label || p).join(", ")
       : "None specified";
@@ -424,24 +444,42 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       ? scannedCentroids.map(c => `- ${c.label}: ${(c.similarity * 100).toFixed(1)}% alignment`).join("\n")
       : "None scanned";
 
-    return `Sales Profile Information:
-- Prospect Account/Company Name: ${name}
-- Target Industry: ${industry}
-- Deal Cycle Stage: ${dealStage}
-- Target Pitch Tone: ${tone}
-- Target Contract Price: $${price.toLocaleString()} / mo
-- Customer Pain Points: ${formattedPainPoints}
-- Custom Attributes: ${formattedCustom}
+    const profileJson = JSON.stringify({
+      prospect: name || "Wayne Enterprises",
+      industry,
+      dealStage,
+      targetTone: tone,
+      contractPriceMonthly: `$${price.toLocaleString()}`,
+      prospectRole: prospectRole || "VP of Operations",
+      competitors: competitors || "None specified",
+      callToAction: cta || "15-minute introductory call",
+      outboundChannel: channel || "Cold Email",
+      painPointsList: painPoints.map(p => popularPainPoints.find(ppp => ppp.id === p)?.label || p),
+      customMetadata: customAttributes
+    }, null, 2);
 
-Profile Mapping & Embedded Vector Bits (Q):
-- Centroid Alignment Matches:
+    let promptText = `B2B Prospect Profile Information (JSON formatted):
+\`\`\`json
+${profileJson}
+\`\`\`
+
+Profile Mapping & Embedded Vector Bits [Q]:
+- Vector Alignment Matches to Centroids:
 ${matchesText}
 - Embedding Bits (Hex digest): ${vectorHex}
+`;
 
-Draft Sales Pitch:
-"${synthesizedPitch.text}"
+    if (synthesizedPitch) {
+      promptText += `\nLocal Mapped Sales Pitch Base Script:\n"${synthesizedPitch.text}"\n`;
+    }
 
-Help me generate a marketing copy.`;
+    promptText += `\nTASK:\nDraft a hyper-personalized B2B outreach sequence and sales copywriting tailored specifically for ${name || "Wayne Enterprises"} utilizing a distinct ${tone.toLowerCase()} tone.
+Customize the writing specifically for the "${prospectRole || "Target Lead"}" role over the "${channel || "Cold Email"}" channel.
+Integrate solutions to their main pain points (${formattedPainPoints}) and customize for their "${dealStage}" cycle stage.
+Take into account their competitive situation (Competitors: ${competitors || "None specified"}).
+Provide 2 high-conversion variations with engaging/high-open subject lines, and make sure to naturally embed this Call To Action: "${cta}".`;
+
+    return promptText;
   };
 
   return (
@@ -464,23 +502,36 @@ Help me generate a marketing copy.`;
 
           {/* Form Content */}
           <div className="space-y-4">
-            <div>
-              <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Prospect Account/Company Name
-              </label>
-              <input
-                type="text"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="e.g. Wayne Enterprises"
-                className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none"
-              />
-            </div>
-
-            {/* Industry, Deal Stage & Tone Row */}
+            {/* Row 1: Target Entity Details */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Prospect Company
+                </label>
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="e.g. Wayne Enterprises"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Prospect Role / Title
+                </label>
+                <input
+                  type="text"
+                  value={prospectRole}
+                  onChange={(e) => setProspectRole(e.target.value)}
+                  placeholder="e.g. VP of Sales"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                   Target Industry
                 </label>
                 <select
@@ -495,9 +546,57 @@ Help me generate a marketing copy.`;
                   ))}
                 </select>
               </div>
+            </div>
+
+            {/* Row 2: Campaign Outreach Mechanics */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Outbound Channel
+                </label>
+                <select
+                  value={channel}
+                  onChange={(e) => setChannel(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none cursor-pointer font-semibold animate-fadeIn"
+                >
+                  <option value="Cold Email">Cold Email</option>
+                  <option value="LinkedIn InMail">LinkedIn InMail</option>
+                  <option value="Cold Call Script">Cold Call Script</option>
+                  <option value="SMS Pitch Copy">SMS Pitch Copy</option>
+                </select>
+              </div>
 
               <div>
-                <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Key Competitors
+                </label>
+                <input
+                  type="text"
+                  value={competitors}
+                  onChange={(e) => setCompetitors(e.target.value)}
+                  placeholder="e.g. Salesforce, HubSpot"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
+                  Call to Action (CTA)
+                </label>
+                <input
+                  type="text"
+                  value={cta}
+                  onChange={(e) => setCta(e.target.value)}
+                  placeholder="e.g. 15-min discovery call"
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 focus:ring-1 focus:ring-slate-400 text-xs text-slate-800 rounded-lg p-2.5 focus:outline-none"
+                />
+              </div>
+            </div>
+
+            {/* Row 3: Deal Parameters */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                   Deal Cycle Stage
                 </label>
                 <select
@@ -514,7 +613,7 @@ Help me generate a marketing copy.`;
               </div>
 
               <div>
-                <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+                <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-1.5">
                   Pitch Tone
                 </label>
                 <select
@@ -534,10 +633,10 @@ Help me generate a marketing copy.`;
             {/* Price slider */}
             <div>
               <div className="flex justify-between items-baseline mb-2">
-                <label className="text-xs font-sans font-bold text-slate-500 uppercase tracking-wider">
+                <label className="text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider">
                   Target Contract Price (USD)
                 </label>
-                <span className="font-sans text-slate-900 text-sm font-black">
+                <span className="font-sans text-slate-900 text-xs font-black">
                   ${price.toLocaleString()} / mo
                 </span>
               </div>
@@ -559,8 +658,8 @@ Help me generate a marketing copy.`;
 
             {/* Pain points selector list */}
             <div>
-              <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
-                Structural Customer Pain Points
+              <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+                Structural Customer Pain Points (Select Multiple)
               </label>
               <div className="grid grid-cols-2 gap-2">
                 {popularPainPoints.map((pain) => {
@@ -570,14 +669,14 @@ Help me generate a marketing copy.`;
                       key={pain.id}
                       type="button"
                       onClick={() => handlePainToggle(pain.id)}
-                      className={`text-left p-2.5 rounded-lg border transition-all cursor-pointer flex justify-between items-center text-xs ${
+                      className={`text-left px-2.5 py-2.5 rounded-lg border transition-all cursor-pointer flex justify-between items-center text-xs ${
                         isActive
                           ? "bg-slate-50 border-slate-900 text-slate-900 font-bold"
                           : "bg-slate-50 border-slate-200 text-slate-500 hover:border-slate-350"
                       }`}
                     >
-                      <span>{pain.label}</span>
-                      {isActive && <div className="w-1.5 h-1.5 rounded-full bg-slate-900" />}
+                      <span className="truncate text-[11px]">{pain.label}</span>
+                      {isActive && <div className="w-1.5 h-1.5 rounded-full bg-slate-900 shrink-0 ml-1.5" />}
                     </button>
                   );
                 })}
@@ -586,7 +685,7 @@ Help me generate a marketing copy.`;
 
             {/* Custom attributes manager */}
             <div className="border-t border-slate-100 pt-4 mt-6">
-              <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+              <label className="block text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
                 Ad-Hoc Attribute Bindings (Custom Keys)
               </label>
               <div className="flex gap-2 mb-3">
@@ -762,76 +861,31 @@ Help me generate a marketing copy.`;
           </div>
         </div>
 
-        {/* Stage 4: Result box */}
-        {compilingStep === "completed" && synthesizedPitch && (
-          <div className="border-t border-slate-100 pt-4 mt-6 animate-fadeIn select-none space-y-3.5">
-            <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-2 rounded-lg">
-              <div className="flex gap-1.5 items-center">
-                <Activity className="w-3.5 h-3.5 text-slate-500 animate-pulse" />
-                <span className="font-sans text-[9px] uppercase font-bold text-slate-755">
-                  Refined Template: {activeCentroidMatch.replace(" Model", "")}
+        {/* Stage 4: Result box & ChatGPT Integration (Visible at all times) */}
+        <div className="border-t border-slate-100 pt-4 mt-6 space-y-4">
+          {/* Sub-section A: Local Pitch Output */}
+          {compilingStep === "completed" && synthesizedPitch ? (
+            <div className="animate-fadeIn space-y-3">
+              <div className="flex justify-between items-center bg-slate-50 border border-slate-200 p-2 rounded-lg">
+                <div className="flex gap-1.5 items-center">
+                  <Activity className="w-3.5 h-3.5 text-slate-500 animate-pulse" />
+                  <span className="font-sans text-[9px] uppercase font-bold text-slate-700">
+                    Refined Template: {activeCentroidMatch.replace(" Model", "")}
+                  </span>
+                </div>
+                <span className="font-sans text-[9px] text-slate-400 font-bold">
+                  Refinement completed
                 </span>
               </div>
-              <span className="font-sans text-[9px] text-slate-400 font-bold">
-                Generation refinement completed
-              </span>
-            </div>
 
-            <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg text-xs text-slate-705 leading-relaxed font-sans relative">
-              <span className="absolute top-2.5 right-2 px-1.5 py-0.5 font-sans text-[8px] bg-slate-900 text-white rounded tracking-wide uppercase font-extrabold shadow-sm">
-                PITCH_COMPLETED
-              </span>
-              {synthesizedPitch.text}
-            </div>
-
-            {/* Deep Link Output Preview Area */}
-            <div className="bg-slate-50 border border-slate-200 p-3.5 rounded-lg space-y-2 select-none">
-              <div className="flex justify-between items-center">
-                <span className="text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider">
-                  ChatGPT Deep Link (URL):
+              <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg text-xs text-slate-705 leading-relaxed font-sans relative">
+                <span className="absolute top-2.5 right-2 px-1.5 py-0.5 font-sans text-[8px] bg-slate-900 text-white rounded tracking-wide uppercase font-extrabold shadow-sm">
+                  PITCH_COMPLETED
                 </span>
-                <button
-                  type="button"
-                  onClick={handleCopyUrl}
-                  className="text-[10px] font-sans font-bold text-slate-800 hover:text-slate-950 cursor-pointer flex items-center gap-1 transition-colors"
-                >
-                  {copiedUrl ? (
-                    <>
-                      <Check className="w-3 h-3 text-emerald-600" />
-                      <span className="text-emerald-700 font-extrabold">Copied Direct URL</span>
-                    </>
-                  ) : (
-                    <>
-                      <Clipboard className="w-3.5 h-3.5" />
-                      <span>Copy Direct URL</span>
-                    </>
-                  )}
-                </button>
-              </div>
-              <div className="bg-white border border-slate-150 p-2.5 rounded text-[10px] font-mono text-slate-500 break-all select-all flex justify-between items-center gap-2 max-h-16 overflow-y-auto custom-scrollbar">
-                {`https://chatgpt.com/?model=${chatGptModel}&q=${encodeURIComponent(getGptPrompt())}`}
-              </div>
-            </div>
-
-            <div className="flex flex-col sm:flex-row justify-between items-center gap-3 bg-slate-50 border border-slate-200 p-3.5 rounded-lg select-none">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] font-sans font-bold text-slate-500 uppercase tracking-wider">
-                  Select ChatGPT Model:
-                </span>
-                <select
-                  value={chatGptModel}
-                  onChange={(e) => setChatGptModel(e.target.value)}
-                  className="bg-white border border-slate-200 rounded text-[11px] text-slate-700 px-2 py-1 focus:outline-none focus:border-slate-400 cursor-pointer font-sans font-bold"
-                >
-                  <option value="gpt-4o">gpt-4o</option>
-                  <option value="o1">o1</option>
-                  <option value="o1-mini">o1-mini</option>
-                  <option value="gpt-4-turbo">gpt-4-turbo</option>
-                  <option value="gpt-3.5-turbo">gpt-3.5-turbo</option>
-                </select>
+                {synthesizedPitch.text}
               </div>
 
-              <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
+              <div className="flex justify-end gap-2">
                 <button
                   type="button"
                   onClick={handleCopy}
@@ -858,20 +912,117 @@ Help me generate a marketing copy.`;
                   <RotateCcw className="w-3.5 h-3.5 text-slate-500" />
                   <span>Regenerate & Improve</span>
                 </button>
-
-                <a
-                  href={`https://chatgpt.com/?model=${chatGptModel}&q=${encodeURIComponent(getGptPrompt())}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1.5 bg-slate-900 text-white hover:bg-slate-800 px-4 py-1.5 rounded-lg text-xs font-sans font-bold transition-all cursor-pointer shadow-sm text-center"
-                >
-                  <ExternalLink className="w-3.5 h-3.5 text-white animate-pulse" />
-                  <span>Build on this Plan</span>
-                </a>
               </div>
             </div>
+          ) : (
+            <div className="border border-dashed border-slate-200 rounded-lg p-5 text-center text-xs text-slate-400 bg-slate-50/50 flex flex-col items-center justify-center min-h-[110px] select-none">
+              <Sparkles className="w-5 h-5 text-slate-350 mb-1.5 animate-pulse" />
+              <p className="font-bold uppercase tracking-wider text-[9px] text-slate-550 mb-1 font-bold">Vector Pipeline Standby</p>
+              <p className="text-[11px] leading-relaxed max-w-xs text-slate-400">
+                Click "Create Pitch" on the left to map high-dimensional vectors and synthesize the local base script instantly.
+              </p>
+            </div>
+          )}
+
+          {/* Sub-section B: ChatGPT Deep Link Area (Always visible, ranked by reasoning power) */}
+          <div className="bg-slate-50 border border-slate-200 p-4 rounded-lg space-y-3.5 select-none animate-fadeIn">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+              <div className="flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-slate-850 animate-pulse" />
+                <span className="text-[10px] font-sans font-extrabold text-slate-900 uppercase tracking-wider">
+                  ChatGPT Copilot Dispatch
+                </span>
+              </div>
+              <span className="text-[9px] font-sans text-slate-400 font-extrabold uppercase tracking-widest bg-slate-100 px-2 py-0.5 rounded">
+                Ranked by Reasoning
+              </span>
+            </div>
+
+            <p className="text-[10px] font-sans text-slate-405 leading-relaxed font-semibold">
+              Select a model below to launch directly into ChatGPT pre-loaded with our complete JSON-optimized B2B outbound campaign prompt context.
+            </p>
+
+            <div className="space-y-2.5">
+              {[
+                { 
+                  id: "o1", 
+                  name: "ChatGPT o1", 
+                  power: "Reasoning: Max", 
+                  desc: "Multistep logical reasoning. Best for long outbound strategy & deal mapping.",
+                  badge: "★ Highest Cap",
+                  badgeColor: "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                },
+                { 
+                  id: "o1-mini", 
+                  name: "ChatGPT o1-mini", 
+                  power: "Reasoning: High", 
+                  desc: "Sub-second code and high logical personalizations.",
+                  badge: "Logic King",
+                  badgeColor: "bg-teal-50 text-teal-700 border border-teal-200"
+                },
+                { 
+                  id: "gpt-4o", 
+                  name: "GPT-4o", 
+                  power: "Reasoning: Balanced", 
+                  desc: "Omni-capability. High warmth, perfect for consultative voice tones.",
+                  badge: "Versatile",
+                  badgeColor: "bg-slate-100 text-slate-700 border border-slate-200"
+                },
+                { 
+                  id: "gpt-4-turbo", 
+                  name: "GPT-4-Turbo", 
+                  power: "Reasoning: Legacy High", 
+                  desc: "Classic robust template personalized outbound generation.",
+                  badge: "Established",
+                  badgeColor: "bg-slate-50 text-slate-550 border border-slate-200"
+                },
+                { 
+                  id: "gpt-3.5-turbo", 
+                  name: "GPT-3.5-Turbo", 
+                  power: "Reasoning: Low", 
+                  desc: "Speed-optimized. Basic quick pitch writing drafts.",
+                  badge: "Lightweight",
+                  badgeColor: "bg-slate-50 text-slate-400"
+                }
+              ].map((m) => {
+                const targetLink = `https://chatgpt.com/?model=${m.id}&q=${encodeURIComponent(getGptPrompt())}`;
+                return (
+                  <a
+                    key={m.id}
+                    href={targetLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={() => setChatGptModel(m.id)}
+                    className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white border border-slate-200 hover:border-slate-400 p-3 rounded-lg transition-all transform active:scale-[0.99] cursor-pointer shadow-sm group hover:shadow"
+                  >
+                    <div className="text-left space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-sans font-black text-slate-900 group-hover:text-slate-955 transition-colors">
+                          {m.name}
+                        </span>
+                        <span className={`text-[8px] px-1.5 py-0.5 rounded font-sans font-extrabold uppercase tracking-wider ${m.badgeColor}`}>
+                          {m.badge}
+                        </span>
+                      </div>
+                      <p className="text-[10px] font-sans text-slate-400 leading-snug font-bold">
+                        {m.desc}
+                      </p>
+                    </div>
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 font-sans shrink-0">
+                      <span className="text-[8px] text-slate-450 font-black uppercase tracking-wider hidden sm:inline">
+                        {m.power}
+                      </span>
+                      <span className="bg-slate-900 group-hover:bg-slate-950 text-white text-[10px] font-sans font-extrabold px-3 py-1.5 rounded-md uppercase tracking-wider flex items-center gap-1.5 transition-all shadow-sm">
+                        Launch <ExternalLink className="w-3 h-3 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                      </span>
+                    </div>
+                  </a>
+                );
+              })}
+            </div>
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
