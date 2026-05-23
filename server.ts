@@ -222,8 +222,8 @@ Make it sound executive, elegant, and definitive (around 3 to 4 impactful senten
           headers: {
             "Authorization": `Bearer ${process.env.OPEN_API}`,
             "Content-Type": "application/json",
-            "HTTP-Referer": "https://ai.studio/build",
-            "X-Title": "Oracle Sales Applet"
+            "HTTP-Referer": "https://hormojee.com",
+            "X-Title": "Hormojee Vector Pitch Engine"
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-flash",
