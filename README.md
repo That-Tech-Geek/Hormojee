@@ -1,4 +1,4 @@
-# Hormojee (YC W26) 🚀
+# Hormojee 🚀
 
 > **We vectorize B2B customer profiles to synthesize hyper-personalized, high-conversion sales copy in under 100ms.**
 
@@ -67,5 +67,5 @@ The application is configured to run on Port `3000` with hot-reloading configura
 
 ---
 
-## 📈 YC Venture Backing (W26 Concept Pitch)
+## 📈 Business Pitch & Value Proposition
 Hormojee is empowering B2B outbound teams to execute high-volume campaigns with bespoke-level quality. By reducing research times from **15 minutes to zero seconds** while boosting email reply rates, we are building the definitive foundational layer for autonomous sales intelligence.
