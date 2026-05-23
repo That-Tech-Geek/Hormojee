@@ -144,6 +144,7 @@ app.post("/api/pitch", async (req, res) => {
       price: Number(product.price) || 1000,
       painPoints: product.painPoints || [],
       customAttributes: product.customAttributes || {},
+      tone: product.tone || "Consultative",
     };
 
     // 1. Calculate high dimensional vector representing current query product
@@ -194,6 +195,7 @@ TARGET PROFILE:
 - Name: ${prodData.name}
 - Industry: ${prodData.industry}
 - Deal Stage: ${prodData.dealStage}
+- Preferred Tone style: ${prodData.tone} (Ensure the text strictly aligns with this communication style, e.g. aggressive/assertive, consultative/collaborative, empathetic/understanding, direct, or analytical)
 - Contract Value/Price: $${prodData.price}
 - Core Pain Points: ${prodData.painPoints.join(", ") || "None specified"}
 
@@ -202,6 +204,11 @@ NEAREST CLUSTER MATCH (Similarity Score: ${(finalConfidence * 100).toFixed(1)}%)
 
 TASK:
 Refine the cluster match pitch into a hyper-personalized, punchy, persuasive, professional pitch that is structured specifically for ${prodData.name}.${improvementDirective}
+Ensure the tone of the sales pitch is distinctly **${prodData.tone}**:
+- If Aggressive: use high urgency, direct pressure on ROI metrics, bold, and assertive vocabulary.
+- If Consultative: use collaborative value building, partnership-oriented phrasing, and trusted advisor positioning.
+- If Empathetic: focus deeply on mitigating their pains, acknowledging industry-specific pressure points, and establishing active relationship affinity.
+- For other styles, adopt their representative communicative posture.
 Keep the strong high-dimensional mathematical core intact, but replace boilerplate fields with realistic metrics tailored specifically to their domain.
 Make it sound executive, elegant, and definitive (around 3 to 4 impactful sentences). Do not include any greeting or signature line, just output the pure refined pitch text itself.
 `;

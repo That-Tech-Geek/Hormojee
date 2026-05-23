@@ -10,6 +10,7 @@ export interface ProductData {
   price: number;
   painPoints: string[];
   customAttributes?: Record<string, string>;
+  tone?: string;
 }
 
 export interface CentroidRecord {

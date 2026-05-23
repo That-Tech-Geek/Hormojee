@@ -18,6 +18,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   const [name, setName] = useState("");
   const [industry, setIndustry] = useState("SaaS");
   const [dealStage, setDealStage] = useState("proposal");
+  const [tone, setTone] = useState("Consultative");
   const [price, setPrice] = useState(5000);
   const [painPoints, setPainPoints] = useState<string[]>(["compliance", "downtime"]);
   const [customKey, setCustomKey] = useState("");
@@ -47,6 +48,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       setPrice(initialProduct.price);
       setPainPoints(initialProduct.painPoints || []);
       setCustomAttributes(initialProduct.customAttributes || {});
+      setTone(initialProduct.tone || "Consultative");
     } else {
       // Default initial states
       setName("Cyberdyne Systems");
@@ -55,6 +57,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       setPrice(7500);
       setPainPoints(["compliance", "low adoption"]);
       setCustomAttributes({});
+      setTone("Consultative");
     }
   }, [initialProduct]);
 
@@ -150,6 +153,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
   // Support lists
   const availableIndustries = ["SaaS", "Manufacturing", "Finance", "Healthcare", "Retail", "Education", "Energy", "Defense"];
   const availableDealStages = ["discovery", "demo", "proposal", "negotiation", "closed"];
+  const availableTones = ["Consultative", "Aggressive", "Empathetic", "Direct", "Visionary", "Analytical"];
   const popularPainPoints = [
     { id: "compliance", label: "Regulatory Compliance" },
     { id: "downtime", label: "Operational Downtime" },
@@ -202,7 +206,8 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       dealStage,
       price,
       painPoints,
-      customAttributes
+      customAttributes,
+      tone
     };
 
     // Stage 1: Local profile encoding
@@ -296,7 +301,8 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
       dealStage,
       price,
       painPoints,
-      customAttributes
+      customAttributes,
+      tone
     };
 
     try {
@@ -373,6 +379,7 @@ export default function GeneratorView({ initialProduct, onPitchGenerated }: Gene
 - Prospect Account/Company Name: ${name}
 - Target Industry: ${industry}
 - Deal Cycle Stage: ${dealStage}
+- Target Pitch Tone: ${tone}
 - Target Contract Price: $${price.toLocaleString()} / mo
 - Customer Pain Points: ${formattedPainPoints}
 - Custom Attributes: ${formattedCustom}
@@ -421,8 +428,8 @@ Help me generate a marketing copy.`;
               />
             </div>
 
-            {/* Industry & Deal Stage Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {/* Industry, Deal Stage & Tone Row */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
                   Target Industry
@@ -452,6 +459,23 @@ Help me generate a marketing copy.`;
                   {availableDealStages.map((stage) => (
                     <option key={stage} value={stage}>
                       {stage}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-xs font-sans font-bold text-slate-500 uppercase tracking-wider mb-2">
+                  Pitch Tone
+                </label>
+                <select
+                  value={tone}
+                  onChange={(e) => setTone(e.target.value)}
+                  className="w-full bg-slate-50 border border-slate-200 focus:border-slate-400 text-xs text-slate-850 rounded-lg p-2.5 focus:outline-none font-sans font-bold cursor-pointer"
+                >
+                  {availableTones.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
                     </option>
                   ))}
                 </select>
